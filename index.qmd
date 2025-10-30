@@ -42,7 +42,7 @@ code-overflow: wrap
 code-line-numbers: false
 code-block-font-size: "0.85em"
 
-bibliography: ../../references.bib
+##bibliography: ../../references.bib
 ---
 
 ## Background and Goals
@@ -87,7 +87,7 @@ After installation completes, comment the line back out to avoid reinstalling on
 using Pkg
 lab_dir = dirname(@__FILE__)
 Pkg.activate(lab_dir)
-# Pkg.instantiate() # uncomment this the first time you run the lab to install packages, then comment it back
+Pkg.instantiate() # uncomment this the first time you run the lab to install packages, then comment it back
 ```
 
 ```{julia}
@@ -277,7 +277,81 @@ Follow these steps:
 :::
 
 ```{julia}
-# Your code here
+# Delta method: Here we will find the diff of observations(GHCN) and hitorical (CMIP6) for each month, then we will add that to SSP 2020 to 2040, each month....say for July the GCM hist(CMIP6) is saying the temp is 21 degree, the GHCN obs is saying 23 degree, that means the diff is -2 degree...so now we will add 2 degree to each year july value of SSP...say 2030 SSP july is saying 31 degree, so after adding 2, it will be 33 degree..(note if the diff was opposite, say +2 degree, then we will substract 2 from 31 that means 31-2=29 degree)
+# -------------------------------------------------------------------
+# 3.3 Task 2: Implement Additive Delta Method
+# -------------------------------------------------------------------
+using CairoMakie
+CairoMakie.activate!()
+using CairoMakie, DataFrames, Dates, Statistics
+
+# Calculate monthly mean bias (Δm = GCM_hist - OBS_hist)
+monthly_bias = DataFrame(
+    month = gcm_monthly.month,
+    gcm_mean = gcm_monthly.mean_temp,
+    obs_mean = obs_monthly.mean_temp
+)
+monthly_bias.bias = monthly_bias.gcm_mean .- monthly_bias.obs_mean
+
+# Print first few rows to verify
+println("Monthly Bias Table (Δm = GCM - OBS):")
+show(first(monthly_bias, 12), allrows=true, allcols=true)
+
+# Visualize the bias using CairoMakie barplot
+fig_bias = Figure(size = (600, 350))
+ax_bias = Axis(fig_bias[1, 1],
+    title = "Monthly Mean Bias (GCM - GHCN)",
+    xlabel = "Month",
+    ylabel = "Temperature Bias (°C)",
+    xticks = MONTH_LABELS
+)
+barplot!(ax_bias, monthly_bias.month, monthly_bias.bias, color = :orange)
+hlines!(ax_bias, [0], color = :black, linestyle = :dash)
+display(fig_bias)
+
+# Write the correction function
+function apply_delta_method(gcm_temps::Vector{Float64}, gcm_dates::Vector{Date}, monthly_bias_df::DataFrame)
+    corrected_temps = similar(gcm_temps)
+    for i in eachindex(gcm_temps)
+        m = month(gcm_dates[i])
+        Δm = monthly_bias_df.bias[monthly_bias_df.month .== m][1]
+        corrected_temps[i] = gcm_temps[i] - Δm
+    end
+    return corrected_temps
+end
+
+# Apply the correction to SSP3-7.0 (2020–2040)
+df_ssp370_near.temp_delta = apply_delta_method(df_ssp370_near.temp,
+                                               df_ssp370_near.date,
+                                               monthly_bias)
+
+# Compute monthly climatologies (no macros)
+near_monthly_raw = combine(groupby(df_ssp370_near, :month),
+                           :temp => mean => :mean_temp)
+near_monthly_delta = combine(groupby(df_ssp370_near, :month),
+                             :temp_delta => mean => :mean_temp)
+
+# Create comparison plot (CairoMakie)
+fig_delta = Figure(resolution = (600, 350))
+ax_delta = Axis(fig_delta[1, 1],
+    title = "Delta Method: Annual Cycle for SSP3-7.0 Near-Term (2020–2040)",
+    xlabel = "Month",
+    ylabel = "Temperature (°C)",
+    xticks = MONTH_LABELS
+)
+
+lines!(ax_delta, obs_monthly.month, obs_monthly.mean_temp,
+    color = :blue, linewidth = 2, label = "Historical Obs")
+lines!(ax_delta, near_monthly_raw.month, near_monthly_raw.mean_temp,
+    color = :coral, linewidth = 2, label = "GCM Raw")
+lines!(ax_delta, near_monthly_delta.month, near_monthly_delta.mean_temp,
+    color = :green, linewidth = 2, linestyle = :dash, label = "Delta Corrected")
+
+axislegend(ax_delta, position = :lt)
+fig_bias
+fig_delta
+
+
 ```
 
 ### Task 3: Implement Quantile-Quantile Mapping
@@ -311,7 +385,70 @@ Follow these steps:
 :::
 
 ```{julia}
-# Your code here
+# quantile-quantile plot
+###say the Observed (Reality) 0, 5, 10, 15, 20
+###GCM (Model) -2, 3, 8, 13, 18
+###GCM 50th percentile is 8, the model 50th percentile is 10, so ###replace the GCM 8 with the value 10
+using DataFrames, StatsBase, CairoMakie, Statistics
+
+# --- 1. Extract temperature vectors ---
+# Convert columns to Float64 vectors (ensuring no missing values)
+obs_hist_temps = Float64.(skipmissing(df_obs_hist.TAVG))
+gcm_hist_temps = Float64.(skipmissing(df_gcm_hist.temp))
+
+# --- 2. Fit empirical CDFs (ECDF) ---
+ecdf_obs = ecdf(obs_hist_temps)     # Observed distribution
+ecdf_gcm = ecdf(gcm_hist_temps)     # Historical GCM distribution
+
+# --- 3. Define the QQ-mapping function ---
+function apply_qqmap_empirical(gcm_temps::Vector{Float64}, ecdf_gcm, obs_hist_temps::Vector{Float64})
+    corrected_temps = similar(gcm_temps)
+    for i in eachindex(gcm_temps)
+        # Find percentile of each GCM temperature within its own historical CDF
+        p = ecdf_gcm(gcm_temps[i])
+        # Clamp the percentile to avoid edge issues (0 or 1)
+        p = clamp(p, 0.001, 0.999)
+        # Map to corresponding temperature in the observed distribution
+        corrected_temps[i] = quantile(obs_hist_temps, p)
+    end
+    return corrected_temps
+end
+
+# --- 4. Apply the correction to future (SSP3–7.0) GCM data ---
+df_ssp370_near.temp_qqmap = apply_qqmap_empirical(
+    Float64.(skipmissing(df_ssp370_near.temp)),
+    ecdf_gcm,
+    obs_hist_temps
+)
+
+# --- 5. Create QQ-plot (Observed vs Historical GCM) ---
+percentiles = 0.01:0.01:0.99
+obs_quantiles = quantile(obs_hist_temps, percentiles)
+gcm_hist_quantiles = quantile(gcm_hist_temps, percentiles)
+
+# Activate CairoMakie backend
+CairoMakie.activate!()
+
+# Create the QQ plot
+fig = Figure(size = (650, 650))
+ax = Axis(fig[1, 1],
+    title = "Quantile–Quantile (QQ) Plot: Historical Obs vs GCM",
+    xlabel = "Observed Quantiles (°C)",
+    ylabel = "GCM Quantiles (°C)"
+)
+
+# Scatter the quantiles (distribution comparison)
+CairoMakie.scatter!(ax, obs_quantiles, gcm_hist_quantiles,
+    color = :royalblue, markersize = 6, label = "QQ Points")
+
+# Add 1:1 reference line (perfect distribution match)
+CairoMakie.lines!(ax, [-20, 40], [-20, 40],
+    color = :black, linestyle = :dash, linewidth = 2, label = "1:1 Line")
+
+axislegend(ax, position = :lt)
+display(fig)
+
+
 ```
 
 ### Task 4: Compare Methods
@@ -333,11 +470,41 @@ Create a single figure showing monthly mean temperature for the near-term period
 After creating the plot, examine it carefully and consider:
 
 - How do the two correction methods differ?
+Ans: During the start of the x axis, the delta green line stays a bit higher than the QQ mapping, which says the delta-corrected temperatures are a bit higher(strong warming) than the QQ plot during the months of April-June.
 - What does the QQ-mapped line reveal about this method's treatment of the warming signal?
+Ans: The QQ line shows less warming than the delta method during months April-June. QQ line fixes the values based on where it sits in the distribution, but not just by a fix value like delta method.
 :::
 
 ```{julia}
 # Your code here
+using DataFrames, Statistics
+###compute monthly mean
+near_monthly_qqmap = combine(groupby(df_ssp370_near, :month),
+    :temp_qqmap => mean => :mean_temp)
+
+###creating figures
+using CairoMakie
+
+fig, ax = lines(
+    obs_monthly.month, obs_monthly.mean_temp,
+    color = :black, linewidth = 2.5, label = "Historical Obs"
+)
+
+lines!(ax, near_monthly_raw.month, near_monthly_raw.mean_temp,
+    color = :coral, linewidth = 2, label = "Raw GCM")
+
+lines!(ax, near_monthly_delta.month, near_monthly_delta.mean_temp,
+    color = :green, linestyle = :dash, linewidth = 2, label = "Delta")
+
+lines!(ax, near_monthly_qqmap.month, near_monthly_qqmap.mean_temp,
+    color = :purple, linestyle = :dot, linewidth = 2, label = "QQ-map")
+
+ax.xlabel = "Month"
+ax.ylabel = "Temperature (°C)"
+ax.title = "Annual Cycle Comparison: All Methods (Near-term 2020–2040)"
+axislegend(ax, position = :lt)
+display(fig)
+
 ```
 
 ### Task 5: Reflection
@@ -351,16 +518,21 @@ Write brief responses (2-3 sentences each) to the following questions:
 
 1. **Method selection:** If you were providing climate data to support a decision about urban heat management in Boston, which bias correction method would you recommend and why?
 
-2. **Appropriateness of QQ-mapping:** In the @ines_biascorrection:2006 paper we discussed, QQ-mapping was used to correct both the *frequency* and *intensity* of rainfall for crop modeling. For temperature data, does it make sense to correct the full distribution? Why or why not? When might the delta method be more appropriate than QQ-mapping?
+2. **Appropriateness of QQ-mapping:** In the 
+lines_biascorrection:2006 
+paper we discussed, QQ-mapping was used to correct both the *frequency* and *intensity* of rainfall for crop modeling. For temperature data, does it make sense to correct the full distribution? Why or why not? When might the delta method be more appropriate than QQ-mapping?
 :::
 
 #### Method Selection for Urban Heat Management
 
-*Your response here*
+Ans: For urban heat management, I would prefer the delta method, because urban heat managment primarily focus on mean temperature trend
+and delta method is sufficient for that. Also, this delta method is much easier to implement for decision makers. So, my takeway is mainly, Q-Q plot is for rainfall and delta method is for heat management.
 
 #### Appropriateness of QQ-Mapping for Temperature
 
-*Your response here*
+Ans: The temp data, if we want to know the long term warming trend, then the mean correction or delta method is suitable. The delta method only adjusts the mean by shifting entire dataset up or down while it keeps the  future warming signal of the climate model unchanged.
+
+Menawhile, QQ map change the full shape of the temp distribution. So, if we care about the short term temp variability, then the QQ method is suitable so thatwe can get more accurate daily or extreme temp ptterns.
 
 ## References
 

@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.7.33">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="CEVE 543 Fall 2025">
+<meta name="dcterms.date" content="2025-10-24">
+
+<title>CEVE 543 Fall 2025 Lab 7: Bias Correction Implementation</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+/* CSS for citations */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+}
+.hanging-indent div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}</style>
+
+
+<script src="index_files/libs/clipboard/clipboard.min.js"></script>
+<script src="index_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="index_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="index_files/libs/quarto-html/popper.min.js"></script>
+<script src="index_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="index_files/libs/quarto-html/anchor.min.js"></script>
+<link href="index_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="index_files/libs/quarto-html/quarto-syntax-highlighting-ea385d0e468b0dd5ea5bf0780b1290d9.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="index_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="index_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="index_files/libs/bootstrap/bootstrap-70c18b3fcf3ad5875c444a0457f1804b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul class="collapse">
+  <li><a href="#background-and-goals" id="toc-background-and-goals" class="nav-link active" data-scroll-target="#background-and-goals"><span class="header-section-number">1</span> Background and Goals</a></li>
+  <li><a href="#study-location-and-data" id="toc-study-location-and-data" class="nav-link" data-scroll-target="#study-location-and-data"><span class="header-section-number">2</span> Study Location and Data</a></li>
+  <li><a href="#lab-implementation" id="toc-lab-implementation" class="nav-link" data-scroll-target="#lab-implementation"><span class="header-section-number">3</span> Lab Implementation</a></li>
+  <li><a href="#references" id="toc-references" class="nav-link" data-scroll-target="#references"><span class="header-section-number">4</span> References</a></li>
+  </ul>
+<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="index.pdf"><i class="bi bi-file-pdf"></i>Typst</a></li></ul></div></nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">CEVE 543 Fall 2025 Lab 7: Bias Correction Implementation</h1>
+<p class="subtitle lead">Delta method and quantile mapping for temperature bias correction</p>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p>CEVE 543 Fall 2025 </p>
+          </div>
+  </div>
+    
+    <div>
+    <div class="quarto-title-meta-heading">Published</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">October 24, 2025</p>
+    </div>
+  </div>
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="background-and-goals" class="level2" data-number="1">
+<h2 data-number="1" class="anchored" data-anchor-id="background-and-goals"><span class="header-section-number">1</span> Background and Goals</h2>
+<p>Climate models have systematic biases that directly affect impact assessments, arising from coarse spatial resolution, parameterization of sub-grid processes, representation of topography, and errors in simulated circulation patterns. This lab implements two widely-used bias correction approaches: the delta method and quantile-quantile (QQ) mapping. The delta method preserves the climate model’s change signal while anchoring absolute values to observations, whereas QQ-mapping corrects the full distribution of values.</p>
+<p>Both methods assume stationarity—that the statistical relationship between model and observations remains constant across climate states. This assumption may not hold under significant climate change. We’ll explore the strengths and limitations of each method using temperature data for Boston, providing hands-on experience before PS2 Part 1.</p>
+</section>
+<section id="study-location-and-data" class="level2" data-number="2">
+<h2 data-number="2" class="anchored" data-anchor-id="study-location-and-data"><span class="header-section-number">2</span> Study Location and Data</h2>
+<p>This lab uses temperature data for Boston Logan International Airport (Station ID: USW00014739, 42.3631<span class="math inline">\(^\circ\)</span>N, 71.0064<span class="math inline">\(^\circ\)</span>W). Observational data comes from GHCN-Daily (1936-2024) and is provided in the <code>USW00014739.csv</code> file in degrees Celsius. Climate model data comes from the GFDL-ESM4 model’s 3-hourly near-surface air temperature (<code>tas</code>), pre-downloaded from Google Cloud Storage for both historical (1850-2014) and SSP3-7.0 (2015-2100) scenarios. Refer to <a href=".\labs/Lab-6/index.qmd">Lab 6</a> for details on CMIP6 data structure.</p>
+<section id="data-processing-notes" class="level3" data-number="2.1">
+<h3 data-number="2.1" class="anchored" data-anchor-id="data-processing-notes"><span class="header-section-number">2.1</span> Data Processing Notes</h3>
+<p>The GHCN data provides daily average temperature in degrees Celsius. CMIP6 provides 3-hourly instantaneous temperature in Kelvin, which we’ll convert to Celsius and aggregate to daily averages. The pre-downloaded NetCDF files (<code>boston_historical.nc</code> and <code>boston_ssp370.nc</code>) contain 3-hourly surface air temperature for the grid cell nearest to Boston. We aggregate 8 consecutive 3-hour periods to approximate daily averages, ignoring daylight saving time—a simplification typical in many bias correction applications. If you’re interested in applying these methods to a different location, the <code>download_data.jl</code> script demonstrates how to extract CMIP6 data from Google Cloud Storage.</p>
+<div class="callout callout-style-default callout-important callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Before Starting
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Before starting the lab, uncomment the <code>Pkg.instantiate()</code> line in the first code block and run it to install all required packages. This will take a few minutes the first time. After installation completes, comment the line back out to avoid reinstalling on subsequent runs.</p>
+</div>
+</div>
+</section>
+</section>
+<section id="lab-implementation" class="level2" data-number="3">
+<h2 data-number="3" class="anchored" data-anchor-id="lab-implementation"><span class="header-section-number">3</span> Lab Implementation</h2>
+<section id="package-setup" class="level3" data-number="3.1">
+<h3 data-number="3.1" class="anchored" data-anchor-id="package-setup"><span class="header-section-number">3.1</span> Package Setup</h3>
+<div id="2" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Pkg</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>lab_dir <span class="op">=</span> <span class="fu">dirname</span>(<span class="pp">@__FILE__</span>)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="bu">Pkg</span>.<span class="fu">activate</span>(lab_dir)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="bu">Pkg</span>.<span class="fu">instantiate</span>() <span class="co"># uncomment this the first time you run the lab to install packages, then comment it back</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div id="4" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">CSV</span>, <span class="bu">CairoMakie</span>, <span class="bu">DataFrames</span>, <span class="bu">Dates</span>, <span class="bu">LaTeXStrings</span>, <span class="bu">NCDatasets</span>, <span class="bu">Statistics</span>, <span class="bu">StatsBase</span>, <span class="bu">TidierData</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="cn">ENV</span>[<span class="st">"DATAFRAMES_ROWS"</span>] <span class="op">=</span> <span class="fl">6</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>CairoMakie.<span class="fu">activate!</span>()</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Constants for plotting</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> MONTH_NAMES <span class="op">=</span> [<span class="st">"Jan"</span>, <span class="st">"Feb"</span>, <span class="st">"Mar"</span>, <span class="st">"Apr"</span>, <span class="st">"May"</span>, <span class="st">"Jun"</span>, <span class="st">"Jul"</span>, <span class="st">"Aug"</span>, <span class="st">"Sep"</span>, <span class="st">"Oct"</span>, <span class="st">"Nov"</span>, <span class="st">"Dec"</span>]</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> MONTH_LABELS <span class="op">=</span> (<span class="fl">1</span><span class="op">:</span><span class="fl">12</span>, MONTH_NAMES)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="task-1-load-and-process-data" class="level3" data-number="3.2">
+<h3 data-number="3.2" class="anchored" data-anchor-id="task-1-load-and-process-data"><span class="header-section-number">3.2</span> Task 1: Load and Process Data</h3>
+<p>We begin by loading both observational and climate model data. The observational data from GHCN-Daily spans 1936-2024, while the CMIP6 data requires processing from 3-hourly to daily resolution. We’ll use the overlapping historical period (1995-2014) to calibrate bias corrections.</p>
+<div class="callout callout-style-default callout-important callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Instructions
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Load the Boston GHCN temperature data from <code>USW00014739.csv</code> and filter to years with at least 80% complete data. Then load the pre-downloaded CMIP6 NetCDF files and aggregate the 3-hourly temperature data to daily values for the historical (1995-2014) and near-term future (2020-2040) periods. The helper functions <code>load_cmip6_data()</code> and <code>aggregate_to_daily()</code> are provided below. Finally, visualize the annual cycle comparing observations vs the historical GCM simulation.</p>
+</div>
+</div>
+<div id="6" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Load and clean the observational data</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>data_path <span class="op">=</span> <span class="fu">joinpath</span>(lab_dir, <span class="st">"USW00014739.csv"</span>)</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> <span class="pp">@chain</span> <span class="cf">begin</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    CSV.<span class="fu">read</span>(data_path, DataFrame)</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@mutate</span>(</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>        TAVG <span class="op">=</span> <span class="fu">ifelse</span>.(<span class="fu">ismissing</span>.(TMIN) <span class="op">.|</span> <span class="fu">ismissing</span>.(TMAX), <span class="cn">missing</span>, (TMIN <span class="op">.+</span> TMAX) <span class="op">./</span> <span class="fl">2</span>),</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@mutate</span>(TAVG <span class="op">=</span> TAVG <span class="op">/</span> <span class="fl">10.0</span>) <span class="co"># Convert to degrees C</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@rename</span>(date <span class="op">=</span> DATE)</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@mutate</span>(year <span class="op">=</span> <span class="fu">year</span>(date), month <span class="op">=</span> <span class="fu">month</span>(date))</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@select</span>(date, year, month, TAVG)</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Filter to years with at least 80% complete data</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>yearly_counts <span class="op">=</span> <span class="pp">@chain</span> df <span class="cf">begin</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@group_by</span>(year)</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@summarize</span>(n_obs <span class="op">=</span> <span class="fu">sum</span>(!<span class="fu">ismissing</span>(TAVG)), n_total <span class="op">=</span> <span class="fu">n</span>())</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@mutate</span>(frac_complete <span class="op">=</span> n_obs <span class="op">/</span> n_total)</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>good_years_df <span class="op">=</span> <span class="pp">@chain</span> yearly_counts <span class="cf">begin</span></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@filter</span>(frac_complete <span class="op">&gt;=</span> <span class="fl">0.8</span>)</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>good_years <span class="op">=</span> good_years_df.year</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>df_clean <span class="op">=</span> <span class="pp">@chain</span> df <span class="cf">begin</span></span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@filter</span>(year <span class="kw">in</span> !!good_years)</span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>    <span class="fu">dropmissing</span>(<span class="op">:</span>TAVG)</span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div id="8" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Helper functions for CMIP6 data</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="st">"""</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="st">Load CMIP6 temperature data from a local NetCDF file and convert times to DateTime.</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="st">"""</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">load_cmip6_data</span>(file_path<span class="op">::</span><span class="dt">String</span>)</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    ds <span class="op">=</span> <span class="fu">NCDataset</span>(file_path)</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    tas_data <span class="op">=</span> ds[<span class="st">"tas"</span>][<span class="op">:</span>]</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    time_cf <span class="op">=</span> ds[<span class="st">"time"</span>][<span class="op">:</span>]</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">close</span>(ds)</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    time_data <span class="op">=</span> [<span class="fu">DateTime</span>(</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>        <span class="bu">Dates</span>.<span class="fu">year</span>(t), <span class="bu">Dates</span>.<span class="fu">month</span>(t), <span class="bu">Dates</span>.<span class="fu">day</span>(t),</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>        <span class="bu">Dates</span>.<span class="fu">hour</span>(t), <span class="bu">Dates</span>.<span class="fu">minute</span>(t), <span class="bu">Dates</span>.<span class="fu">second</span>(t)</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    ) for t <span class="kw">in</span> time_cf]</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> tas_data, time_data</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a><span class="st">"""</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a><span class="st">Aggregate 3-hourly temperature data to daily averages.</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a><span class="st">"""</span></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">aggregate_to_daily</span>(tas_3hr, time_3hr)</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>    n_3hr_per_day <span class="op">=</span> <span class="fl">8</span></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>    n_days <span class="op">=</span> <span class="fu">div</span>(<span class="fu">length</span>(tas_3hr), n_3hr_per_day)</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>    daily_temp <span class="op">=</span> <span class="fu">Vector</span><span class="dt">{Float64}</span>(<span class="cn">undef</span>, n_days)</span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>    daily_dates <span class="op">=</span> <span class="fu">Vector</span><span class="dt">{Date}</span>(<span class="cn">undef</span>, n_days)</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span>n_days</span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>        idx_start <span class="op">=</span> (i <span class="op">-</span> <span class="fl">1</span>) <span class="op">*</span> n_3hr_per_day <span class="op">+</span> <span class="fl">1</span></span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>        idx_end <span class="op">=</span> i <span class="op">*</span> n_3hr_per_day</span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>        daily_vals <span class="op">=</span> <span class="fu">collect</span>(<span class="fu">skipmissing</span>(tas_3hr[idx_start<span class="op">:</span>idx_end]))</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>        daily_temp[i] <span class="op">=</span> <span class="fu">isempty</span>(daily_vals) ? <span class="cn">NaN</span> <span class="op">:</span> <span class="fu">mean</span>(daily_vals)</span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>        daily_dates[i] <span class="op">=</span> <span class="fu">Date</span>(time_3hr[idx_start])</span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>    daily_temp_c <span class="op">=</span> daily_temp <span class="op">.-</span> <span class="fl">273.15</span>  <span class="co"># Convert K to C</span></span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> daily_temp_c, daily_dates</span>
+<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a><span class="co"># Load and process CMIP6 data</span></span>
+<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a>hist_file <span class="op">=</span> <span class="fu">joinpath</span>(lab_dir, <span class="st">"boston_historical.nc"</span>)</span>
+<span id="cb4-43"><a href="#cb4-43" aria-hidden="true" tabindex="-1"></a>ssp370_file <span class="op">=</span> <span class="fu">joinpath</span>(lab_dir, <span class="st">"boston_ssp370.nc"</span>)</span>
+<span id="cb4-44"><a href="#cb4-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-45"><a href="#cb4-45" aria-hidden="true" tabindex="-1"></a>tas_hist_3hr, time_hist_3hr <span class="op">=</span> <span class="fu">load_cmip6_data</span>(hist_file)</span>
+<span id="cb4-46"><a href="#cb4-46" aria-hidden="true" tabindex="-1"></a>tas_ssp370_3hr, time_ssp370_3hr <span class="op">=</span> <span class="fu">load_cmip6_data</span>(ssp370_file)</span>
+<span id="cb4-47"><a href="#cb4-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-48"><a href="#cb4-48" aria-hidden="true" tabindex="-1"></a><span class="co"># Process historical period (1995-2014)</span></span>
+<span id="cb4-49"><a href="#cb4-49" aria-hidden="true" tabindex="-1"></a>hist_start <span class="op">=</span> <span class="fu">DateTime</span>(<span class="fl">1995</span>, <span class="fl">1</span>, <span class="fl">1</span>)</span>
+<span id="cb4-50"><a href="#cb4-50" aria-hidden="true" tabindex="-1"></a>hist_end <span class="op">=</span> <span class="fu">DateTime</span>(<span class="fl">2014</span>, <span class="fl">12</span>, <span class="fl">31</span>, <span class="fl">23</span>, <span class="fl">59</span>, <span class="fl">59</span>)</span>
+<span id="cb4-51"><a href="#cb4-51" aria-hidden="true" tabindex="-1"></a>hist_idx <span class="op">=</span> (time_hist_3hr <span class="op">.&gt;=</span> hist_start) <span class="op">.&amp;</span> (time_hist_3hr <span class="op">.&lt;=</span> hist_end)</span>
+<span id="cb4-52"><a href="#cb4-52" aria-hidden="true" tabindex="-1"></a>tas_hist_daily, dates_hist_daily <span class="op">=</span> <span class="fu">aggregate_to_daily</span>(tas_hist_3hr[hist_idx], time_hist_3hr[hist_idx])</span>
+<span id="cb4-53"><a href="#cb4-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-54"><a href="#cb4-54" aria-hidden="true" tabindex="-1"></a><span class="co"># Process near-term period (2020-2040)</span></span>
+<span id="cb4-55"><a href="#cb4-55" aria-hidden="true" tabindex="-1"></a>near_start <span class="op">=</span> <span class="fu">DateTime</span>(<span class="fl">2020</span>, <span class="fl">1</span>, <span class="fl">1</span>)</span>
+<span id="cb4-56"><a href="#cb4-56" aria-hidden="true" tabindex="-1"></a>near_end <span class="op">=</span> <span class="fu">DateTime</span>(<span class="fl">2040</span>, <span class="fl">12</span>, <span class="fl">31</span>, <span class="fl">23</span>, <span class="fl">59</span>, <span class="fl">59</span>)</span>
+<span id="cb4-57"><a href="#cb4-57" aria-hidden="true" tabindex="-1"></a>near_idx <span class="op">=</span> (time_ssp370_3hr <span class="op">.&gt;=</span> near_start) <span class="op">.&amp;</span> (time_ssp370_3hr <span class="op">.&lt;=</span> near_end)</span>
+<span id="cb4-58"><a href="#cb4-58" aria-hidden="true" tabindex="-1"></a>tas_ssp370_near_daily, dates_ssp370_near_daily <span class="op">=</span> <span class="fu">aggregate_to_daily</span>(tas_ssp370_3hr[near_idx], time_ssp370_3hr[near_idx])</span>
+<span id="cb4-59"><a href="#cb4-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-60"><a href="#cb4-60" aria-hidden="true" tabindex="-1"></a><span class="co"># Create DataFrames</span></span>
+<span id="cb4-61"><a href="#cb4-61" aria-hidden="true" tabindex="-1"></a>df_gcm_hist <span class="op">=</span> <span class="fu">DataFrame</span>(</span>
+<span id="cb4-62"><a href="#cb4-62" aria-hidden="true" tabindex="-1"></a>    date<span class="op">=</span>dates_hist_daily, temp<span class="op">=</span>tas_hist_daily,</span>
+<span id="cb4-63"><a href="#cb4-63" aria-hidden="true" tabindex="-1"></a>    year<span class="op">=</span><span class="fu">year</span>.(dates_hist_daily), month<span class="op">=</span><span class="fu">month</span>.(dates_hist_daily)</span>
+<span id="cb4-64"><a href="#cb4-64" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-65"><a href="#cb4-65" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-66"><a href="#cb4-66" aria-hidden="true" tabindex="-1"></a>df_ssp370_near <span class="op">=</span> <span class="fu">DataFrame</span>(</span>
+<span id="cb4-67"><a href="#cb4-67" aria-hidden="true" tabindex="-1"></a>    date<span class="op">=</span>dates_ssp370_near_daily, temp<span class="op">=</span>tas_ssp370_near_daily,</span>
+<span id="cb4-68"><a href="#cb4-68" aria-hidden="true" tabindex="-1"></a>    year<span class="op">=</span><span class="fu">year</span>.(dates_ssp370_near_daily), month<span class="op">=</span><span class="fu">month</span>.(dates_ssp370_near_daily)</span>
+<span id="cb4-69"><a href="#cb4-69" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-70"><a href="#cb4-70" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-71"><a href="#cb4-71" aria-hidden="true" tabindex="-1"></a>df_obs_hist <span class="op">=</span> <span class="pp">@chain</span> df_clean <span class="cf">begin</span></span>
+<span id="cb4-72"><a href="#cb4-72" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@filter</span>(year <span class="op">&gt;=</span> <span class="fl">1995</span> <span class="op">&amp;&amp;</span> year <span class="op">&lt;=</span> <span class="fl">2014</span>)</span>
+<span id="cb4-73"><a href="#cb4-73" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb4-74"><a href="#cb4-74" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-75"><a href="#cb4-75" aria-hidden="true" tabindex="-1"></a><span class="co"># Compute monthly climatologies</span></span>
+<span id="cb4-76"><a href="#cb4-76" aria-hidden="true" tabindex="-1"></a>obs_monthly <span class="op">=</span> <span class="pp">@chain</span> df_obs_hist <span class="cf">begin</span></span>
+<span id="cb4-77"><a href="#cb4-77" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@group_by</span>(month)</span>
+<span id="cb4-78"><a href="#cb4-78" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@summarize</span>(mean_temp <span class="op">=</span> <span class="fu">mean</span>(TAVG))</span>
+<span id="cb4-79"><a href="#cb4-79" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb4-80"><a href="#cb4-80" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-81"><a href="#cb4-81" aria-hidden="true" tabindex="-1"></a>gcm_monthly <span class="op">=</span> <span class="pp">@chain</span> df_gcm_hist <span class="cf">begin</span></span>
+<span id="cb4-82"><a href="#cb4-82" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@group_by</span>(month)</span>
+<span id="cb4-83"><a href="#cb4-83" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@summarize</span>(mean_temp <span class="op">=</span> <span class="fu">mean</span>(temp))</span>
+<span id="cb4-84"><a href="#cb4-84" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div id="cell-fig-gcm-obs-comparison" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    fig <span class="op">=</span> <span class="fu">Figure</span>()</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    ax <span class="op">=</span> <span class="fu">Axis</span>(fig[<span class="fl">1</span>, <span class="fl">1</span>],</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>        xlabel<span class="op">=</span><span class="st">"Month"</span>,</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>        ylabel<span class="op">=</span>L<span class="st">"Temperature (</span><span class="sc">$</span><span class="st">^\</span>circ<span class="sc">$</span>C<span class="st">)"</span>,</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>        title<span class="op">=</span><span class="st">"Annual Cycle: Observations vs GCM Historical (1995-2014)"</span>,</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>        xticks<span class="op">=</span>MONTH_LABELS)</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">lines!</span>(ax, obs_monthly.month, obs_monthly.mean_temp, linewidth<span class="op">=</span><span class="fl">2</span>, color<span class="op">=:</span>steelblue, label<span class="op">=</span><span class="st">"Observations"</span>)</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">lines!</span>(ax, gcm_monthly.month, gcm_monthly.mean_temp, linewidth<span class="op">=</span><span class="fl">2</span>, color<span class="op">=:</span>coral, label<span class="op">=</span><span class="st">"GCM Historical"</span>)</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">axislegend</span>(ax, position<span class="op">=:</span>lt)</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>    fig</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<div id="fig-gcm-obs-comparison" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-gcm-obs-comparison-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="index_files/figure-html/fig-gcm-obs-comparison-output-1.png" width="528" height="336" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-gcm-obs-comparison-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Annual cycle comparison between GHCN observations and GFDL-ESM4 historical simulation for Boston (1995-2014). The GCM shows a warm bias across most months.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="task-2-implement-delta-method" class="level3" data-number="3.3">
+<h3 data-number="3.3" class="anchored" data-anchor-id="task-2-implement-delta-method"><span class="header-section-number">3.3</span> Task 2: Implement Delta Method</h3>
+<p>The delta method corrects the mean bias while preserving the climate model’s projected change signal. We calculate a monthly bias correction based on the historical period (1995-2014) and apply it to future projections.</p>
+<div class="callout callout-style-default callout-important callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Instructions
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Implement the additive delta method for temperature bias correction. For each calendar month <span class="math inline">\(m\)</span>, calculate the mean bias: <span class="math inline">\(\Delta_m = \bar{T}^\text{GCM}_{\text{hist},m} - \bar{T}^\text{obs}_{\text{hist},m}\)</span>. Then apply the correction to future values: <span class="math inline">\(T^\text{corr}_{\text{fut}}(d, m, y) = T^\text{GCM}_{\text{fut}}(d, m, y) - \Delta_m\)</span>.</p>
+<p>Follow these steps:</p>
+<ol type="1">
+<li>Calculate the monthly mean bias by grouping both <code>df_gcm_hist</code> and <code>df_obs_hist</code> by month, computing their means, joining them, and computing the difference.</li>
+<li>Create a bar plot visualizing the monthly bias.</li>
+<li>Write a function <code>apply_delta_method(gcm_temps, gcm_dates, monthly_bias_df)</code> that applies the bias correction to a vector of temperatures and dates.</li>
+<li>Apply your function to the near-term data and add a new column <code>temp_delta</code> to <code>df_ssp370_near</code>.</li>
+<li>Create monthly climatologies for both raw and delta-corrected near-term data.</li>
+<li>Visualize the annual cycle showing historical observations, raw GCM near-term, and delta-corrected near-term temperatures.</li>
+</ol>
+</div>
+</div>
+<div id="12" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Delta method: Here we will find the diff of observations(GHCN) and hitorical (CMIP6) for each month, then we will add that to SSP 2020 to 2040, each month....say for July the GCM hist(CMIP6) is saying the temp is 21 degree, the GHCN obs is saying 23 degree, that means the diff is -2 degree...so now we will add 2 degree to each year july value of SSP...say 2030 SSP july is saying 31 degree, so after adding 2, it will be 33 degree..(note if the diff was opposite, say +2 degree, then we will substract 2 from 31 that means 31-2=29 degree)</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="co"># -------------------------------------------------------------------</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 3.3 Task 2: Implement Additive Delta Method</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="co"># -------------------------------------------------------------------</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">CairoMakie</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>CairoMakie.<span class="fu">activate!</span>()</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">CairoMakie</span>, <span class="bu">DataFrames</span>, <span class="bu">Dates</span>, <span class="bu">Statistics</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate monthly mean bias (Δm = GCM_hist - OBS_hist)</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>monthly_bias <span class="op">=</span> <span class="fu">DataFrame</span>(</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    month <span class="op">=</span> gcm_monthly.month,</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    gcm_mean <span class="op">=</span> gcm_monthly.mean_temp,</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    obs_mean <span class="op">=</span> obs_monthly.mean_temp</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>monthly_bias.bias <span class="op">=</span> monthly_bias.gcm_mean <span class="op">.-</span> monthly_bias.obs_mean</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Print first few rows to verify</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Monthly Bias Table (Δm = GCM - OBS):"</span>)</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a><span class="fu">show</span>(<span class="fu">first</span>(monthly_bias, <span class="fl">12</span>), allrows<span class="op">=</span><span class="cn">true</span>, allcols<span class="op">=</span><span class="cn">true</span>)</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a><span class="co"># Visualize the bias using CairoMakie barplot</span></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>fig_bias <span class="op">=</span> <span class="fu">Figure</span>(size <span class="op">=</span> (<span class="fl">600</span>, <span class="fl">350</span>))</span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>ax_bias <span class="op">=</span> <span class="fu">Axis</span>(fig_bias[<span class="fl">1</span>, <span class="fl">1</span>],</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>    title <span class="op">=</span> <span class="st">"Monthly Mean Bias (GCM - GHCN)"</span>,</span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>    xlabel <span class="op">=</span> <span class="st">"Month"</span>,</span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>    ylabel <span class="op">=</span> <span class="st">"Temperature Bias (°C)"</span>,</span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>    xticks <span class="op">=</span> MONTH_LABELS</span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a><span class="fu">barplot!</span>(ax_bias, monthly_bias.month, monthly_bias.bias, color <span class="op">=</span> <span class="op">:</span>orange)</span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a><span class="fu">hlines!</span>(ax_bias, [<span class="fl">0</span>], color <span class="op">=</span> <span class="op">:</span>black, linestyle <span class="op">=</span> <span class="op">:</span>dash)</span>
+<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a><span class="fu">display</span>(fig_bias)</span>
+<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a><span class="co"># Write the correction function</span></span>
+<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">apply_delta_method</span>(gcm_temps<span class="op">::</span><span class="dt">Vector{Float64}</span>, gcm_dates<span class="op">::</span><span class="dt">Vector{Date}</span>, monthly_bias_df<span class="op">::</span><span class="dt">DataFrame</span>)</span>
+<span id="cb6-35"><a href="#cb6-35" aria-hidden="true" tabindex="-1"></a>    corrected_temps <span class="op">=</span> <span class="fu">similar</span>(gcm_temps)</span>
+<span id="cb6-36"><a href="#cb6-36" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="fu">eachindex</span>(gcm_temps)</span>
+<span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a>        m <span class="op">=</span> <span class="fu">month</span>(gcm_dates[i])</span>
+<span id="cb6-38"><a href="#cb6-38" aria-hidden="true" tabindex="-1"></a>        Δm <span class="op">=</span> monthly_bias_df.bias[monthly_bias_df.month <span class="op">.==</span> m][<span class="fl">1</span>]</span>
+<span id="cb6-39"><a href="#cb6-39" aria-hidden="true" tabindex="-1"></a>        corrected_temps[i] <span class="op">=</span> gcm_temps[i] <span class="op">-</span> Δm</span>
+<span id="cb6-40"><a href="#cb6-40" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb6-41"><a href="#cb6-41" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> corrected_temps</span>
+<span id="cb6-42"><a href="#cb6-42" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb6-43"><a href="#cb6-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-44"><a href="#cb6-44" aria-hidden="true" tabindex="-1"></a><span class="co"># Apply the correction to SSP3-7.0 (2020–2040)</span></span>
+<span id="cb6-45"><a href="#cb6-45" aria-hidden="true" tabindex="-1"></a>df_ssp370_near.temp_delta <span class="op">=</span> <span class="fu">apply_delta_method</span>(df_ssp370_near.temp,</span>
+<span id="cb6-46"><a href="#cb6-46" aria-hidden="true" tabindex="-1"></a>                                               df_ssp370_near.date,</span>
+<span id="cb6-47"><a href="#cb6-47" aria-hidden="true" tabindex="-1"></a>                                               monthly_bias)</span>
+<span id="cb6-48"><a href="#cb6-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-49"><a href="#cb6-49" aria-hidden="true" tabindex="-1"></a><span class="co"># Compute monthly climatologies (no macros)</span></span>
+<span id="cb6-50"><a href="#cb6-50" aria-hidden="true" tabindex="-1"></a>near_monthly_raw <span class="op">=</span> <span class="fu">combine</span>(<span class="fu">groupby</span>(df_ssp370_near, <span class="op">:</span>month),</span>
+<span id="cb6-51"><a href="#cb6-51" aria-hidden="true" tabindex="-1"></a>                           <span class="op">:</span>temp <span class="op">=&gt;</span> mean <span class="op">=&gt;</span> <span class="op">:</span>mean_temp)</span>
+<span id="cb6-52"><a href="#cb6-52" aria-hidden="true" tabindex="-1"></a>near_monthly_delta <span class="op">=</span> <span class="fu">combine</span>(<span class="fu">groupby</span>(df_ssp370_near, <span class="op">:</span>month),</span>
+<span id="cb6-53"><a href="#cb6-53" aria-hidden="true" tabindex="-1"></a>                             <span class="op">:</span>temp_delta <span class="op">=&gt;</span> mean <span class="op">=&gt;</span> <span class="op">:</span>mean_temp)</span>
+<span id="cb6-54"><a href="#cb6-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-55"><a href="#cb6-55" aria-hidden="true" tabindex="-1"></a><span class="co"># Create comparison plot (CairoMakie)</span></span>
+<span id="cb6-56"><a href="#cb6-56" aria-hidden="true" tabindex="-1"></a>fig_delta <span class="op">=</span> <span class="fu">Figure</span>(resolution <span class="op">=</span> (<span class="fl">600</span>, <span class="fl">350</span>))</span>
+<span id="cb6-57"><a href="#cb6-57" aria-hidden="true" tabindex="-1"></a>ax_delta <span class="op">=</span> <span class="fu">Axis</span>(fig_delta[<span class="fl">1</span>, <span class="fl">1</span>],</span>
+<span id="cb6-58"><a href="#cb6-58" aria-hidden="true" tabindex="-1"></a>    title <span class="op">=</span> <span class="st">"Delta Method: Annual Cycle for SSP3-7.0 Near-Term (2020–2040)"</span>,</span>
+<span id="cb6-59"><a href="#cb6-59" aria-hidden="true" tabindex="-1"></a>    xlabel <span class="op">=</span> <span class="st">"Month"</span>,</span>
+<span id="cb6-60"><a href="#cb6-60" aria-hidden="true" tabindex="-1"></a>    ylabel <span class="op">=</span> <span class="st">"Temperature (°C)"</span>,</span>
+<span id="cb6-61"><a href="#cb6-61" aria-hidden="true" tabindex="-1"></a>    xticks <span class="op">=</span> MONTH_LABELS</span>
+<span id="cb6-62"><a href="#cb6-62" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-63"><a href="#cb6-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-64"><a href="#cb6-64" aria-hidden="true" tabindex="-1"></a><span class="fu">lines!</span>(ax_delta, obs_monthly.month, obs_monthly.mean_temp,</span>
+<span id="cb6-65"><a href="#cb6-65" aria-hidden="true" tabindex="-1"></a>    color <span class="op">=</span> <span class="op">:</span>blue, linewidth <span class="op">=</span> <span class="fl">2</span>, label <span class="op">=</span> <span class="st">"Historical Obs"</span>)</span>
+<span id="cb6-66"><a href="#cb6-66" aria-hidden="true" tabindex="-1"></a><span class="fu">lines!</span>(ax_delta, near_monthly_raw.month, near_monthly_raw.mean_temp,</span>
+<span id="cb6-67"><a href="#cb6-67" aria-hidden="true" tabindex="-1"></a>    color <span class="op">=</span> <span class="op">:</span>coral, linewidth <span class="op">=</span> <span class="fl">2</span>, label <span class="op">=</span> <span class="st">"GCM Raw"</span>)</span>
+<span id="cb6-68"><a href="#cb6-68" aria-hidden="true" tabindex="-1"></a><span class="fu">lines!</span>(ax_delta, near_monthly_delta.month, near_monthly_delta.mean_temp,</span>
+<span id="cb6-69"><a href="#cb6-69" aria-hidden="true" tabindex="-1"></a>    color <span class="op">=</span> <span class="op">:</span>green, linewidth <span class="op">=</span> <span class="fl">2</span>, linestyle <span class="op">=</span> <span class="op">:</span>dash, label <span class="op">=</span> <span class="st">"Delta Corrected"</span>)</span>
+<span id="cb6-70"><a href="#cb6-70" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-71"><a href="#cb6-71" aria-hidden="true" tabindex="-1"></a><span class="fu">axislegend</span>(ax_delta, position <span class="op">=</span> <span class="op">:</span>lt)</span>
+<span id="cb6-72"><a href="#cb6-72" aria-hidden="true" tabindex="-1"></a>fig_bias</span>
+<span id="cb6-73"><a href="#cb6-73" aria-hidden="true" tabindex="-1"></a>fig_delta</span>
+<span id="cb6-74"><a href="#cb6-74" aria-hidden="true" tabindex="-1"></a></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<div class="ansi-escaped-output">
+<pre>Monthly Bias Table (Δm = GCM - OBS):
+<span class="ansi-bold">12×4 DataFrame</span>
+<span class="ansi-bold"> Row </span>│<span class="ansi-bold"> month </span><span class="ansi-bold"> gcm_mean </span><span class="ansi-bold"> obs_mean   </span><span class="ansi-bold"> bias     </span>
+     │<span class="ansi-bright-black-fg"> Int64 </span><span class="ansi-bright-black-fg"> Float64  </span><span class="ansi-bright-black-fg"> Float64    </span><span class="ansi-bright-black-fg"> Float64  </span>
+─────┼───────────────────────────────────────
+   1 │     1  -3.18274  -1.09024    -2.0925
+   2 │     2  -1.70476   0.0218584  -1.72662
+   3 │     3   2.00539   3.78944    -1.78405
+   4 │     4   6.41217   9.34408    -2.93191
+   5 │     5  12.445    14.5874     -2.14243
+   6 │     6  17.8571   19.9404     -2.08332
+   7 │     7  21.1401   23.3412     -2.20107
+   8 │     8  20.5512   22.5353     -1.9841
+   9 │     9  17.1836   18.6946     -1.51102
+  10 │    10  11.555    12.6931     -1.1381
+  11 │    11   5.14819   7.06367    -1.91548
+  12 │    12   0.52005   2.04863    -1.52858<span class="ansi-yellow-fg ansi-bold">┌ </span><span class="ansi-yellow-fg ansi-bold">Warning: </span>Found `resolution` in the theme when creating a `Scene`. The `resolution` keyword for `Scene`s and `Figure`s has been deprecated. Use `Figure(; size = ...` or `Scene(; size = ...)` instead, which better reflects that this is a unitless size and not a pixel resolution. The key could also come from `set_theme!` calls or related theming functions.
+<span class="ansi-yellow-fg ansi-bold">└ </span><span class="ansi-bright-black-fg">@ Makie C:\Users\Owner\.julia\packages\Makie\4JW9B\src\scenes.jl:264</span>
+</pre>
+</div>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="index_files/figure-html/cell-7-output-2.png" width="600" height="350" class="figure-img"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<div>
+<figure class="figure">
+<p><img src="index_files/figure-html/cell-7-output-3.png" width="600" height="350" class="figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="task-3-implement-quantile-quantile-mapping" class="level3" data-number="3.4">
+<h3 data-number="3.4" class="anchored" data-anchor-id="task-3-implement-quantile-quantile-mapping"><span class="header-section-number">3.4</span> Task 3: Implement Quantile-Quantile Mapping</h3>
+<p>Unlike the delta method, QQ-mapping transforms the entire probability distribution of model output to match observations. For each value in the future model output, we find its percentile in the historical model distribution, then map it to the same percentile in the historical observed distribution.</p>
+<div class="callout callout-style-default callout-important callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Instructions
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Implement QQ-mapping to correct the full distribution of temperature values.</p>
+<p>Follow these steps:</p>
+<ol type="1">
+<li>Extract the observed and GCM historical temperatures as vectors (<code>obs_hist_temps</code> and <code>gcm_hist_temps</code>).</li>
+<li>Use <code>ecdf()</code> from StatsBase.jl to fit empirical cumulative distribution functions to both datasets.</li>
+<li>Write a function <code>apply_qqmap_empirical(gcm_temps, ecdf_gcm, obs_hist_temps)</code> that:
+<ul>
+<li>For each temperature value, finds its percentile in the GCM CDF</li>
+<li>Clamps the percentile to the range [0.001, 0.999] to avoid extrapolation</li>
+<li>Maps to the same percentile in the observed distribution using <code>quantile()</code></li>
+</ul></li>
+<li>Apply your function to the near-term data and add a new column <code>temp_qqmap</code> to <code>df_ssp370_near</code>.</li>
+<li>Create a QQ-plot comparing observed and GCM quantiles for the historical period, showing the 1:1 line.</li>
+</ol>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Hints
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<ul>
+<li>Use <code>ecdf_gcm(value)</code> to get the percentile of a value in the GCM distribution</li>
+<li>Use <code>quantile(obs_hist_temps, p)</code> to get the value at percentile <code>p</code> in the observed distribution</li>
+<li>The <code>clamp(x, low, high)</code> function constrains <code>x</code> to the range [low, high]</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div id="14" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># quantile-quantile plot</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="co">###say the Observed (Reality) 0, 5, 10, 15, 20</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="co">###GCM (Model) -2, 3, 8, 13, 18</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co">###GCM 50th percentile is 8, the model 50th percentile is 10, so ###replace the GCM 8 with the value 10</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">DataFrames</span>, <span class="bu">StatsBase</span>, <span class="bu">CairoMakie</span>, <span class="bu">Statistics</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="co"># --- 1. Extract temperature vectors ---</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Convert columns to Float64 vectors (ensuring no missing values)</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>obs_hist_temps <span class="op">=</span> <span class="fu">Float64</span>.(<span class="fu">skipmissing</span>(df_obs_hist.TAVG))</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>gcm_hist_temps <span class="op">=</span> <span class="fu">Float64</span>.(<span class="fu">skipmissing</span>(df_gcm_hist.temp))</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="co"># --- 2. Fit empirical CDFs (ECDF) ---</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>ecdf_obs <span class="op">=</span> <span class="fu">ecdf</span>(obs_hist_temps)     <span class="co"># Observed distribution</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>ecdf_gcm <span class="op">=</span> <span class="fu">ecdf</span>(gcm_hist_temps)     <span class="co"># Historical GCM distribution</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="co"># --- 3. Define the QQ-mapping function ---</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">apply_qqmap_empirical</span>(gcm_temps<span class="op">::</span><span class="dt">Vector{Float64}</span>, ecdf_gcm, obs_hist_temps<span class="op">::</span><span class="dt">Vector{Float64}</span>)</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    corrected_temps <span class="op">=</span> <span class="fu">similar</span>(gcm_temps)</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="fu">eachindex</span>(gcm_temps)</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Find percentile of each GCM temperature within its own historical CDF</span></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>        p <span class="op">=</span> <span class="fu">ecdf_gcm</span>(gcm_temps[i])</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Clamp the percentile to avoid edge issues (0 or 1)</span></span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>        p <span class="op">=</span> <span class="fu">clamp</span>(p, <span class="fl">0.001</span>, <span class="fl">0.999</span>)</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Map to corresponding temperature in the observed distribution</span></span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>        corrected_temps[i] <span class="op">=</span> <span class="fu">quantile</span>(obs_hist_temps, p)</span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> corrected_temps</span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a><span class="co"># --- 4. Apply the correction to future (SSP3–7.0) GCM data ---</span></span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>df_ssp370_near.temp_qqmap <span class="op">=</span> <span class="fu">apply_qqmap_empirical</span>(</span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a>    <span class="fu">Float64</span>.(<span class="fu">skipmissing</span>(df_ssp370_near.temp)),</span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>    ecdf_gcm,</span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a>    obs_hist_temps</span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a><span class="co"># --- 5. Create QQ-plot (Observed vs Historical GCM) ---</span></span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a>percentiles <span class="op">=</span> <span class="fl">0.01</span><span class="op">:</span><span class="fl">0.01</span><span class="op">:</span><span class="fl">0.99</span></span>
+<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a>obs_quantiles <span class="op">=</span> <span class="fu">quantile</span>(obs_hist_temps, percentiles)</span>
+<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a>gcm_hist_quantiles <span class="op">=</span> <span class="fu">quantile</span>(gcm_hist_temps, percentiles)</span>
+<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a><span class="co"># Activate CairoMakie backend</span></span>
+<span id="cb7-43"><a href="#cb7-43" aria-hidden="true" tabindex="-1"></a>CairoMakie.<span class="fu">activate!</span>()</span>
+<span id="cb7-44"><a href="#cb7-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-45"><a href="#cb7-45" aria-hidden="true" tabindex="-1"></a><span class="co"># Create the QQ plot</span></span>
+<span id="cb7-46"><a href="#cb7-46" aria-hidden="true" tabindex="-1"></a>fig <span class="op">=</span> <span class="fu">Figure</span>(size <span class="op">=</span> (<span class="fl">650</span>, <span class="fl">650</span>))</span>
+<span id="cb7-47"><a href="#cb7-47" aria-hidden="true" tabindex="-1"></a>ax <span class="op">=</span> <span class="fu">Axis</span>(fig[<span class="fl">1</span>, <span class="fl">1</span>],</span>
+<span id="cb7-48"><a href="#cb7-48" aria-hidden="true" tabindex="-1"></a>    title <span class="op">=</span> <span class="st">"Quantile–Quantile (QQ) Plot: Historical Obs vs GCM"</span>,</span>
+<span id="cb7-49"><a href="#cb7-49" aria-hidden="true" tabindex="-1"></a>    xlabel <span class="op">=</span> <span class="st">"Observed Quantiles (°C)"</span>,</span>
+<span id="cb7-50"><a href="#cb7-50" aria-hidden="true" tabindex="-1"></a>    ylabel <span class="op">=</span> <span class="st">"GCM Quantiles (°C)"</span></span>
+<span id="cb7-51"><a href="#cb7-51" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-52"><a href="#cb7-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-53"><a href="#cb7-53" aria-hidden="true" tabindex="-1"></a><span class="co"># Scatter the quantiles (distribution comparison)</span></span>
+<span id="cb7-54"><a href="#cb7-54" aria-hidden="true" tabindex="-1"></a>CairoMakie.<span class="fu">scatter!</span>(ax, obs_quantiles, gcm_hist_quantiles,</span>
+<span id="cb7-55"><a href="#cb7-55" aria-hidden="true" tabindex="-1"></a>    color <span class="op">=</span> <span class="op">:</span>royalblue, markersize <span class="op">=</span> <span class="fl">6</span>, label <span class="op">=</span> <span class="st">"QQ Points"</span>)</span>
+<span id="cb7-56"><a href="#cb7-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-57"><a href="#cb7-57" aria-hidden="true" tabindex="-1"></a><span class="co"># Add 1:1 reference line (perfect distribution match)</span></span>
+<span id="cb7-58"><a href="#cb7-58" aria-hidden="true" tabindex="-1"></a>CairoMakie.<span class="fu">lines!</span>(ax, [<span class="op">-</span><span class="fl">20</span>, <span class="fl">40</span>], [<span class="op">-</span><span class="fl">20</span>, <span class="fl">40</span>],</span>
+<span id="cb7-59"><a href="#cb7-59" aria-hidden="true" tabindex="-1"></a>    color <span class="op">=</span> <span class="op">:</span>black, linestyle <span class="op">=</span> <span class="op">:</span>dash, linewidth <span class="op">=</span> <span class="fl">2</span>, label <span class="op">=</span> <span class="st">"1:1 Line"</span>)</span>
+<span id="cb7-60"><a href="#cb7-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-61"><a href="#cb7-61" aria-hidden="true" tabindex="-1"></a><span class="fu">axislegend</span>(ax, position <span class="op">=</span> <span class="op">:</span>lt)</span>
+<span id="cb7-62"><a href="#cb7-62" aria-hidden="true" tabindex="-1"></a><span class="fu">display</span>(fig)</span>
+<span id="cb7-63"><a href="#cb7-63" aria-hidden="true" tabindex="-1"></a></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="index_files/figure-html/cell-8-output-1.png" width="650" height="650" class="figure-img"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>CairoMakie.Screen{IMAGE}</code></pre>
+</div>
+</div>
+</section>
+<section id="task-4-compare-methods" class="level3" data-number="3.5">
+<h3 data-number="3.5" class="anchored" data-anchor-id="task-4-compare-methods"><span class="header-section-number">3.5</span> Task 4: Compare Methods</h3>
+<p>Now we compare the delta method and QQ-mapping approaches to understand their strengths and limitations.</p>
+<div class="callout callout-style-default callout-important callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Instructions
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Create a single figure showing monthly mean temperature for the near-term period (2020-2040) using all four approaches:</p>
+<ol type="1">
+<li>Compute the monthly mean for QQ-mapped temperatures (<code>near_monthly_qqmap</code>)</li>
+<li>Create a figure with 4 lines:
+<ul>
+<li>Historical observations (<code>obs_monthly</code>)</li>
+<li>Raw GCM near-term (<code>near_monthly_raw</code>)</li>
+<li>Delta-corrected near-term (<code>near_monthly_delta</code>)</li>
+<li>QQ-mapped near-term (<code>near_monthly_qqmap</code>)</li>
+</ul></li>
+</ol>
+<p>After creating the plot, examine it carefully and consider:</p>
+<ul>
+<li>How do the two correction methods differ? Ans: During the start of the x axis, the delta green line stays a bit higher than the QQ mapping, which says the delta-corrected temperatures are a bit higher(strong warming) than the QQ plot during the months of April-June.</li>
+<li>What does the QQ-mapped line reveal about this method’s treatment of the warming signal? Ans: The QQ line shows less warming than the delta method during months April-June. QQ line fixes the values based on where it sits in the distribution, but not just by a fix value like delta method.</li>
+</ul>
+</div>
+</div>
+<div id="16" class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Your code here</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">DataFrames</span>, <span class="bu">Statistics</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="co">###compute monthly mean</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>near_monthly_qqmap <span class="op">=</span> <span class="fu">combine</span>(<span class="fu">groupby</span>(df_ssp370_near, <span class="op">:</span>month),</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">:</span>temp_qqmap <span class="op">=&gt;</span> mean <span class="op">=&gt;</span> <span class="op">:</span>mean_temp)</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="co">###creating figures</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">CairoMakie</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> <span class="fu">lines</span>(</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    obs_monthly.month, obs_monthly.mean_temp,</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>    color <span class="op">=</span> <span class="op">:</span>black, linewidth <span class="op">=</span> <span class="fl">2.5</span>, label <span class="op">=</span> <span class="st">"Historical Obs"</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a><span class="fu">lines!</span>(ax, near_monthly_raw.month, near_monthly_raw.mean_temp,</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>    color <span class="op">=</span> <span class="op">:</span>coral, linewidth <span class="op">=</span> <span class="fl">2</span>, label <span class="op">=</span> <span class="st">"Raw GCM"</span>)</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a><span class="fu">lines!</span>(ax, near_monthly_delta.month, near_monthly_delta.mean_temp,</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>    color <span class="op">=</span> <span class="op">:</span>green, linestyle <span class="op">=</span> <span class="op">:</span>dash, linewidth <span class="op">=</span> <span class="fl">2</span>, label <span class="op">=</span> <span class="st">"Delta"</span>)</span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a><span class="fu">lines!</span>(ax, near_monthly_qqmap.month, near_monthly_qqmap.mean_temp,</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>    color <span class="op">=</span> <span class="op">:</span>purple, linestyle <span class="op">=</span> <span class="op">:</span>dot, linewidth <span class="op">=</span> <span class="fl">2</span>, label <span class="op">=</span> <span class="st">"QQ-map"</span>)</span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>ax.xlabel <span class="op">=</span> <span class="st">"Month"</span></span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>ax.ylabel <span class="op">=</span> <span class="st">"Temperature (°C)"</span></span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>ax.title <span class="op">=</span> <span class="st">"Annual Cycle Comparison: All Methods (Near-term 2020–2040)"</span></span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a><span class="fu">axislegend</span>(ax, position <span class="op">=</span> <span class="op">:</span>lt)</span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a><span class="fu">display</span>(fig)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="index_files/figure-html/cell-9-output-1.png" width="528" height="336" class="figure-img"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>CairoMakie.Screen{IMAGE}</code></pre>
+</div>
+</div>
+</section>
+<section id="task-5-reflection" class="level3" data-number="3.6">
+<h3 data-number="3.6" class="anchored" data-anchor-id="task-5-reflection"><span class="header-section-number">3.6</span> Task 5: Reflection</h3>
+<p>Finally, we reflect on the assumptions, limitations, and appropriate use cases for each bias correction method.</p>
+<div class="callout callout-style-default callout-important callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Instructions
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Write brief responses (2-3 sentences each) to the following questions:</p>
+<ol type="1">
+<li><p><strong>Method selection:</strong> If you were providing climate data to support a decision about urban heat management in Boston, which bias correction method would you recommend and why?</p></li>
+<li><p><strong>Appropriateness of QQ-mapping:</strong> In the lines_biascorrection:2006 paper we discussed, QQ-mapping was used to correct both the <em>frequency</em> and <em>intensity</em> of rainfall for crop modeling. For temperature data, does it make sense to correct the full distribution? Why or why not? When might the delta method be more appropriate than QQ-mapping?</p></li>
+</ol>
+</div>
+</div>
+<section id="method-selection-for-urban-heat-management" class="level4" data-number="3.6.1">
+<h4 data-number="3.6.1" class="anchored" data-anchor-id="method-selection-for-urban-heat-management"><span class="header-section-number">3.6.1</span> Method Selection for Urban Heat Management</h4>
+<p>Ans: For urban heat management, I would prefer the delta method, because urban heat managment primarily focus on mean temperature trend and delta method is sufficient for that. Also, this delta method is much easier to implement for decision makers. So, my takeway is mainly, Q-Q plot is for rainfall and delta method is for heat management.</p>
+</section>
+<section id="appropriateness-of-qq-mapping-for-temperature" class="level4" data-number="3.6.2">
+<h4 data-number="3.6.2" class="anchored" data-anchor-id="appropriateness-of-qq-mapping-for-temperature"><span class="header-section-number">3.6.2</span> Appropriateness of QQ-Mapping for Temperature</h4>
+<p>Ans: The temp data, if we want to know the long term warming trend, then the mean correction or delta method is suitable. The delta method only adjusts the mean by shifting entire dataset up or down while it keeps the future warming signal of the climate model unchanged.</p>
+<p>Menawhile, QQ map change the full shape of the temp distribution. So, if we care about the short term temp variability, then the QQ method is suitable so thatwe can get more accurate daily or extreme temp ptterns.</p>
+</section>
+</section>
+</section>
+<section id="references" class="level2" data-number="4">
+<h2 data-number="4" class="anchored" data-anchor-id="references"><span class="header-section-number">4</span> References</h2>
+<div id="refs" role="list">
+
+</div>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+        const codeEl = trigger.previousElementSibling.cloneNode(true);
+        for (const childEl of codeEl.children) {
+          if (isCodeAnnotation(childEl)) {
+            childEl.remove();
+          }
+        }
+        return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>
